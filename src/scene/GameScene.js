@@ -7,21 +7,20 @@ const level = [
 ]
 
 export default class GameScene extends Phaser.Scene {
-
    /** @type {Phaser.Types.Input.Keyboard.CursorKeys} */
    cursor
-
    /** @type {Phaser.Physics.Arcade.Sprite} */
    player
-
    /** @type {Phaser.Physics.Arcade.StaticGroup} */
    boxGroup
-
    /** @type {Phaser.GameObjects.Group} */
    itemsGroup
-
    /** @type {Phaser.Physics.Arcade.Sprite} */
    activeBox
+   /** @type {{box: Phaser.Physics.Arcade.Sprite, item: Phaser.GameObjects.Sprite}[]} */
+   selectedBoxes = []
+
+   matchesCount = 0
 
    constructor() {
       super('game');
@@ -46,14 +45,6 @@ export default class GameScene extends Phaser.Scene {
 
       this.physics.add.collider(this.player, this.boxGroup,
          this.handlePlayerBoxCollide, undefined, this)
-
-      // Couldn`t find true way to add 3 rows at once
-      // this.boxGroup = this.physics.add.staticGroup({
-      //    key: 'sokoban',
-      //    frame: 10,
-      //    repeat: 2,
-      //    setXY: {x: width * 0.25, y: 150, stepX: width * 0.25}
-      // })
    }
 
    createBoxes() {
@@ -79,7 +70,7 @@ export default class GameScene extends Phaser.Scene {
     * @param {Phaser.Physics.Arcade.Sprite} box
     */
    handlePlayerBoxCollide(player, box) {
-      if (this.activeBox) {
+      if (this.activeBox || box.getData('opened')) {
          return false;
       }
 
@@ -88,6 +79,10 @@ export default class GameScene extends Phaser.Scene {
    }
 
    updatePlayer() {
+      if (!this.player.active) {
+         return false;
+      }
+
       const speed = 200;
 
       if (this.cursor.left.isDown) {
@@ -127,7 +122,7 @@ export default class GameScene extends Phaser.Scene {
          this.activeBox.x, this.activeBox.y
       )
 
-      if (distance < 64) {
+      if (distance < 60) {
          return false;
       }
 
@@ -170,18 +165,116 @@ export default class GameScene extends Phaser.Scene {
 
       if (!item) return false;
 
+      // First way to do this
+      // item.setData('sorted', true)
+      box.setData('opened', true)
+      item.setDepth(2000)
+
+      this.selectedBoxes.push({box, item})
+
       item.scale = 0
       item.alpha = 0
 
       this.tweens.add({
          targets: item,
-         y: '-=50',
+         y: '-=40',
          alpha: 1,
-         scale: 0.5,
-         duration: 500
+         scale: 0.4,
+         duration: 500,
+         onComplete: () => {
+            if (itemType === 0) {
+               this.handleBearSelected()
+               return false;
+            }
+
+
+            if (this.selectedBoxes.length < 2) {
+               return false;
+            }
+
+            this.checkForMatch()
+         }
       })
 
+      this.activeBox.setFrame(10)
       this.activeBox = undefined
+   }
+
+   handleBearSelected() {
+      const {box, item} = this.selectedBoxes.pop()
+
+      item.setTint(0xff0000)
+      box.setFrame(7)
+
+      // Stopping from moving
+      this.player.active = false
+      this.player.setVelocity(0, 0)
+
+      this.time.delayedCall(1000, () => {
+         item.setTint(0xffffff)
+         box.setFrame(10)
+         box.setData('opened', false)
+
+         this.tweens.add({
+            targets: item,
+            y: '+=50',
+            alpha: 0,
+            scale: 0,
+            duration: 300,
+            onComplete: () => {
+               this.player.active = true
+            }
+         })
+      })
+   }
+
+   checkForMatch() {
+      const second = this.selectedBoxes.pop()
+      const first = this.selectedBoxes.pop()
+
+      if (first.item.texture !== second.item.texture) {
+         this.tweens.add({
+            targets: [first.item, second.item],
+            y: '+=50',
+            alpha: 0,
+            scale: 0,
+            duration: 300,
+            delay: 1000,
+            onComplete: () => {
+               first.box.setData('opened', false)
+               second.box.setData('opened', false)
+            }
+         })
+
+         return false
+      }
+
+      ++this.matchesCount
+
+      this.tweens.add({
+         targets: [first.item, second.item],
+         y: '+=25',
+         duration: 1000,
+         onComplete: () => {
+            first.box.setFrame(8)
+            second.box.setFrame(8)
+
+            if (this.matchesCount >= 4) {
+               // game won
+               this.player.active = false
+               this.player.setVelocity(0, 0)
+
+               const {width, height} = this.scale;
+               this.add.text(width * 0.5, height * 0.5, 'You Win!', {
+                  fontSize: 48
+               }).setOrigin(0.5).setDepth(3000)
+            }
+         }
+      })
+
+      this.time.delayedCall(100, () => {
+
+      })
    }
 
    update() {
@@ -192,6 +285,15 @@ export default class GameScene extends Phaser.Scene {
       this.children.each(c => {
          /** @type {Phaser.Physics.Arcade.Sprite} */
          const child = c;
+
+         // First way to do this
+         // if (child.getData('sorted')) {
+         //    return false;
+         // }
+         if (this.itemsGroup.contains(child)) {
+            return false;
+         }
+
          child.setDepth(child.y)
       })
    }
