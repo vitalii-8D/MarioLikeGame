@@ -17,4 +17,7 @@ const config = {
     scene: [Preloader, GameScene]
 };
 
+console.log(caches)
+console.log(__dirname)
+
 export default new Phaser.Game(config);
