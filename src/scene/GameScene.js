@@ -1,12 +1,20 @@
 import Phaser from 'phaser'
 
+import CountdownController from "./CountdownController";
+
 const level = [
    [1, 0, 3],
    [2, 4, 1],
    [3, 4, 2]
 ]
 
+// Constants
+import {keyWords} from '../constants/keywords'
+
+const {BEAR, CHICKEN, DUCK, PARROT, PENGUIN, TILESHEET} = keyWords
+
 export default class GameScene extends Phaser.Scene {
+
    /** @type {Phaser.Types.Input.Keyboard.CursorKeys} */
    cursor
    /** @type {Phaser.Physics.Arcade.Sprite} */
@@ -19,6 +27,9 @@ export default class GameScene extends Phaser.Scene {
    activeBox
    /** @type {{box: Phaser.Physics.Arcade.Sprite, item: Phaser.GameObjects.Sprite}[]} */
    selectedBoxes = []
+
+   /** @type {CountdownController} */
+   countdown
 
    matchesCount = 0
 
@@ -33,7 +44,7 @@ export default class GameScene extends Phaser.Scene {
    create() {
       const {width, height} = this.scale;
 
-      this.player = this.physics.add.sprite(width * 0.5, height * 0.6, 'sokoban', 52)
+      this.player = this.physics.add.sprite(width * 0.5, height * 0.6, TILESHEET, 52)
          .setSize(40, 16)
          .setOffset(12, 38)
          .play('down-idle')
@@ -45,6 +56,16 @@ export default class GameScene extends Phaser.Scene {
 
       this.physics.add.collider(this.player, this.boxGroup,
          this.handlePlayerBoxCollide, undefined, this)
+
+      this.player.setCollideWorldBounds()
+
+      const timerLabel = this.add.text(width * 0.5, 50, '45', {
+         fontSize: 45
+      }).setOrigin(0.5)
+
+      this.countdown = new CountdownController(this, timerLabel)
+      this.countdown.start(this.handleCountdownFinished.bind(this), 45000)
+
    }
 
    createBoxes() {
@@ -54,7 +75,7 @@ export default class GameScene extends Phaser.Scene {
       for (let row = 0; row < level.length; row++) {
          for (let col = 0; col < level[row].length; col++) {
             /** @type {Phaser.Physics.Arcade.Sprite}*/
-            const box = this.boxGroup.get(width * xPer, y, 'sokoban', 10)
+            const box = this.boxGroup.get(width * xPer, y, TILESHEET, 10)
             box.setSize(64, 32)
                .setOffset(0, 32)
                .setData('itemType', level[row][col])
@@ -63,6 +84,38 @@ export default class GameScene extends Phaser.Scene {
          xPer = 0.25
          y += 150
       }
+   }
+
+   update() {
+      this.updatePlayer()
+
+      this.children.each(c => {
+         /** @type {Phaser.Physics.Arcade.Sprite} */
+         const child = c;
+
+         // First way to do this
+         // if (child.getData('sorted')) {
+         //    return false;
+         // }
+         if (this.itemsGroup.contains(child)) {
+            return false;
+         }
+
+         child.setDepth(child.y)
+      })
+
+      this.updateActiveBox()
+      this.countdown.update()
+   }
+
+   handleCountdownFinished() {
+      this.player.active = false
+
+      const {width, height} = this.scale
+
+      this.add.text(width * 0.5, height * 0.5, 'You lose!', {
+         fontSize: 52
+      }).setOrigin(0.5)
    }
 
    /**
@@ -103,7 +156,7 @@ export default class GameScene extends Phaser.Scene {
          const key = this.player.anims.currentAnim.key
          const direction = key.split('-')[0]
 
-         this.player.play(`${direction}-idle`)
+         this.player.play(`${direction}-idle`, true)
       }
 
       const spaceJustPressed = Phaser.Input.Keyboard.JustUp(this.cursor.space)
@@ -135,7 +188,6 @@ export default class GameScene extends Phaser.Scene {
       if (!box) return false;
 
       const itemType = box.getData('itemType')
-      console.log(itemType);
 
       /** @type {Phaser.GameObjects.Sprite} */
       let item;
@@ -143,23 +195,23 @@ export default class GameScene extends Phaser.Scene {
       switch (itemType) {
          case 0:
             item = this.itemsGroup.get(box.x, box.y)
-            item.setTexture('bear')
+            item.setTexture(BEAR)
             break;
          case 1:
             item = this.itemsGroup.get(box.x, box.y)
-            item.setTexture('chicken')
+            item.setTexture(CHICKEN)
             break;
          case 2:
             item = this.itemsGroup.get(box.x, box.y)
-            item.setTexture('duck')
+            item.setTexture(DUCK)
             break;
          case 3:
             item = this.itemsGroup.get(box.x, box.y)
-            item.setTexture('parrot')
+            item.setTexture(PARROT)
             break;
          case 4:
             item = this.itemsGroup.get(box.x, box.y)
-            item.setTexture('penguin')
+            item.setTexture(PENGUIN)
             break;
       }
 
@@ -259,42 +311,29 @@ export default class GameScene extends Phaser.Scene {
             first.box.setFrame(8)
             second.box.setFrame(8)
 
-            if (this.matchesCount >= 4) {
+            if (this.matchesCount >= 1) {
                // game won
+               this.countdown.stop()
+
                this.player.active = false
                this.player.setVelocity(0, 0)
 
                const {width, height} = this.scale;
                this.add.text(width * 0.5, height * 0.5, 'You Win!', {
-                  fontSize: 48
-               }).setOrigin(0.5).setDepth(3000)
+                  fontSize: '52px',
+                  color: '#F43535',
+                  backgroundColor: '#FF7A7A',
+                  fontStyle: 'normal',
+                  stroke: '#FFFC49',
+                  strokeThickness: 28,
+                  shadow: {color: '#E78D8D', fill: true, offsetX: 5, offsetY: 5, stroke: true, blur: 2},
+                  padding: {left: 40, right: 40, top: 20, bottom: 20},
+                  wordWrap: {width: 0}
+               }).setOrigin(0.5)
             }
-         }
+         },
+         onCompleteScope: this
       })
 
-      this.time.delayedCall(100, () => {
-
-      })
-   }
-
-   update() {
-      this.updatePlayer()
-
-      this.updateActiveBox()
-
-      this.children.each(c => {
-         /** @type {Phaser.Physics.Arcade.Sprite} */
-         const child = c;
-
-         // First way to do this
-         // if (child.getData('sorted')) {
-         //    return false;
-         // }
-         if (this.itemsGroup.contains(child)) {
-            return false;
-         }
-
-         child.setDepth(child.y)
-      })
    }
 }

@@ -4,7 +4,7 @@ import Preloader from "./scene/Preloader";
 
 const config = {
     type: Phaser.AUTO,
-    parent: 'phaser-example',
+    parent: 'phaser',
     width: 700,
     height: 600,
     physics: {
@@ -17,7 +17,5 @@ const config = {
     scene: [Preloader, GameScene]
 };
 
-console.log(caches)
-console.log(__dirname)
 
 export default new Phaser.Game(config);
