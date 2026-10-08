@@ -110,6 +110,7 @@ export default class GameScene extends Phaser.Scene {
 
    handleCountdownFinished() {
       this.player.active = false
+      this.player.setVelocity(0, 0)
 
       const {width, height} = this.scale
 
